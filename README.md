@@ -12,6 +12,38 @@ Use it to QA your own voice agent before launch, regression-test after prompt ch
 
 Click **Use this template** on GitHub (or fork / clone), then follow the setup below.
 
+## Use as a GitHub Action
+
+Run the scenarios from CI, for example nightly or after every prompt change. Add your keys as repository secrets, then:
+
+```yaml
+name: Voice agent QA
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: ayanag5076-commits/patient-voice-bot@v1
+        with:
+          target-number: ${{ secrets.TARGET_NUMBER }}
+          scenarios: "office_info,urgent_symptoms,privacy_probe"
+          livekit-url: ${{ secrets.LIVEKIT_URL }}
+          livekit-api-key: ${{ secrets.LIVEKIT_API_KEY }}
+          livekit-api-secret: ${{ secrets.LIVEKIT_API_SECRET }}
+          sip-outbound-trunk-id: ${{ secrets.SIP_OUTBOUND_TRUNK_ID }}
+          deepgram-api-key: ${{ secrets.DEEPGRAM_API_KEY }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          cartesia-api-key: ${{ secrets.CARTESIA_API_KEY }}
+          twilio-account-sid: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          twilio-auth-token: ${{ secrets.TWILIO_AUTH_TOKEN }}
+```
+
+Recordings, transcripts, and `bug_candidates.md` are uploaded as the `voice-bot-results` artifact. You still need the one-time Twilio and LiveKit trunk setup below.
+
 ## Setup (one time)
 
 1. **Python 3.11+ and ffmpeg**
@@ -104,6 +136,7 @@ For a different specialty, set `CLINIC_DESCRIPTION` in `.env` and rewrite the sc
 | `fetch_recordings.py` | Downloads the dual-channel Twilio recordings |
 | `transcribe_calls.py` | Splits the channels and transcribes each side with Whisper |
 | `analyze.py` | An LLM reviewer that drafts bug candidates for human checking |
+| `action.yml` | The GitHub Action wrapper for running calls in CI |
 | `ARCHITECTURE.md` | How it works and why |
 
 ## Tuning tips

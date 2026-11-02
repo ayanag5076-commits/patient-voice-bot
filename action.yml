@@ -1,0 +1,138 @@
+name: "Patient Voice Bot QA"
+description: "Call your AI medical receptionist with realistic simulated patients, record and transcribe both sides, and draft bug reports."
+author: "Ayana Greer"
+branding:
+  icon: "phone-call"
+  color: "purple"
+
+inputs:
+  target-number:
+    description: "E.164 phone number of the voice agent to test. Only call lines you own or have permission to test."
+    required: true
+  scenarios:
+    description: "'all', or a comma-separated list of scenario ids from scenarios.py"
+    required: false
+    default: "all"
+  livekit-url:
+    description: "LiveKit Cloud URL (wss://...)"
+    required: true
+  livekit-api-key:
+    description: "LiveKit API key"
+    required: true
+  livekit-api-secret:
+    description: "LiveKit API secret"
+    required: true
+  sip-outbound-trunk-id:
+    description: "LiveKit outbound SIP trunk ID (ST_...)"
+    required: true
+  deepgram-api-key:
+    description: "Deepgram API key"
+    required: true
+  openai-api-key:
+    description: "OpenAI API key"
+    required: true
+  cartesia-api-key:
+    description: "Cartesia API key"
+    required: true
+  twilio-account-sid:
+    description: "Twilio Account SID (for downloading dual-channel recordings)"
+    required: true
+  twilio-auth-token:
+    description: "Twilio auth token"
+    required: true
+  patient-name:
+    description: "Test patient name registered in the system under test"
+    required: false
+    default: "Jordan Lee"
+  patient-dob:
+    description: "Test patient date of birth"
+    required: false
+    default: "March 4, 1988"
+  patient-phone:
+    description: "Test patient callback number"
+    required: false
+    default: "555-555-0100"
+  clinic-description:
+    description: "What kind of practice the bot is calling"
+    required: false
+    default: "an orthopedic practice (bones, joints, muscles, sports injuries, physical therapy)"
+  llm-model:
+    description: "OpenAI model that plays the patient"
+    required: false
+    default: "gpt-6-luna"
+  review-model:
+    description: "OpenAI model that drafts bug candidates"
+    required: false
+    default: "gpt-6.1-sol"
+  cartesia-voice-id:
+    description: "Optional Cartesia voice ID"
+    required: false
+    default: ""
+  gap-seconds:
+    description: "Seconds to wait between calls"
+    required: false
+    default: "15"
+
+outputs:
+  results-dir:
+    description: "Folder with recordings, transcripts, and bug_candidates.md"
+    value: ${{ steps.run.outputs.results-dir }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install ffmpeg and dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        python -m pip install -q -r requirements.txt
+        python agent.py download-files
+
+    - name: Place calls and analyze
+      id: run
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        TARGET_NUMBER: ${{ inputs.target-number }}
+        ALLOWED_NUMBERS: ${{ inputs.target-number }}
+        SCENARIOS: ${{ inputs.scenarios }}
+        GAP: ${{ inputs.gap-seconds }}
+        LIVEKIT_URL: ${{ inputs.livekit-url }}
+        LIVEKIT_API_KEY: ${{ inputs.livekit-api-key }}
+        LIVEKIT_API_SECRET: ${{ inputs.livekit-api-secret }}
+        SIP_OUTBOUND_TRUNK_ID: ${{ inputs.sip-outbound-trunk-id }}
+        DEEPGRAM_API_KEY: ${{ inputs.deepgram-api-key }}
+        OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        CARTESIA_API_KEY: ${{ inputs.cartesia-api-key }}
+        CARTESIA_VOICE_ID: ${{ inputs.cartesia-voice-id }}
+        TWILIO_ACCOUNT_SID: ${{ inputs.twilio-account-sid }}
+        TWILIO_AUTH_TOKEN: ${{ inputs.twilio-auth-token }}
+        PATIENT_NAME: ${{ inputs.patient-name }}
+        PATIENT_DOB: ${{ inputs.patient-dob }}
+        PATIENT_PHONE: ${{ inputs.patient-phone }}
+        CLINIC_DESCRIPTION: ${{ inputs.clinic-description }}
+        LLM_MODEL: ${{ inputs.llm-model }}
+        REVIEW_MODEL: ${{ inputs.review-model }}
+        CALLS_DIR: ${{ github.workspace }}/voice-bot-results/calls
+      run: |
+        mkdir -p "$CALLS_DIR"
+        args=()
+        if [ "$SCENARIOS" = "all" ]; then
+          args+=(--all)
+        else
+          IFS=',' read -ra ids <<< "$SCENARIOS"
+          for id in "${ids[@]}"; do args+=(--scenario "$(echo "$id" | xargs)"); done
+        fi
+        python run.py "${args[@]}" --gap "$GAP"
+        cp -r reports "$GITHUB_WORKSPACE/voice-bot-results/" 2>/dev/null || true
+        echo "results-dir=$GITHUB_WORKSPACE/voice-bot-results" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: voice-bot-results
+        path: ${{ github.workspace }}/voice-bot-results
