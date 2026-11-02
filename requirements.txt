@@ -1,0 +1,6 @@
+livekit-agents[deepgram,openai,cartesia,silero,turn-detector]~=1.8
+livekit-api>=1.0
+python-dotenv>=1.0
+twilio>=9.0
+requests>=2.31
+openai>=1.40

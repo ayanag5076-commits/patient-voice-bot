@@ -1,0 +1,10 @@
+.env
+__pycache__/
+.venv/
+*.pyc
+outbound-trunk.json
+# Call output: recordings and transcripts hold real voices and patient details
+calls/*
+!calls/.gitkeep
+reports/*
+!reports/.gitkeep
